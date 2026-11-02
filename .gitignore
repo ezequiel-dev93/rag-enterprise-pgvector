@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+env/
+
+# Entornos y secretos
+.env
+.env.*
+!.env.example
+
+# Documentos subidos y datos temporales
+uploads/
+data/
+*.db
+*.sqlite3
+
+# IDEs y SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
