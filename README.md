@@ -5,6 +5,7 @@
 [![Database](https://img.shields.io/badge/Database-PostgreSQL%2016%20%2B%20pgvector-blue.svg)](https://github.com/pgvector/pgvector)
 [![Architecture](https://img.shields.io/badge/Architecture-Hexagonal%20(Ports%20%26%20Adapters)-green.svg)](docs/architecture.md)
 [![Status](https://img.shields.io/badge/Tests-100%25%20Passing-success.svg)](tests/)
+[![License](https://img.shields.io/badge/License-Proprietary%20%7C%20All%20Rights%20Reserved-critical.svg)](LICENSE)
 
 Sistema completo de **Retrieval-Augmented Generation (RAG)** de grado de producción diseñado para responder sobre documentos privados (PDFs, manuales técnicos, políticas) con **citas exactas de fuentes** y **cero alucinaciones**.
 
