@@ -11,9 +11,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from src.core.ports import IEmbeddingProvider, ILLMProvider, IVectorRepository
-from src.infrastructure.embeddings.gemini_embedding import GeminiEmbeddingProvider
+from src.infrastructure.embeddings.cloud_embedding import CloudEmbeddingProvider
 from src.infrastructure.embeddings.mock_embedding import MockEmbeddingProvider
-from src.infrastructure.llm.gemini_llm import GeminiLLMProvider
+from src.infrastructure.llm.cloud_llm import CloudLLMProvider
 from src.infrastructure.llm.mock_llm import MockLLMProvider
 from src.infrastructure.parsers.pdf_parser import UniversalDocumentParser
 from src.infrastructure.parsers.semantic_chunker import SemanticChunker
@@ -30,7 +30,31 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# 2. Inicialización de Estado de Sesión (Singleton / Cache)
+MAX_FILE_SIZE_MB = 10
+MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
+
+SAMPLE_DEMO_DOCS = {
+    "politica_corporativa_sla_2026.md": (
+        "# Política Corporativa de Garantías, SLA y Seguridad Cloud (2026)\n\n"
+        "## 1. Tiempos de Respuesta y SLA Crítico\n"
+        "Todo incidente de severidad crítica (P1) en producción debe recibir respuesta de ingeniería en un plazo máximo "
+        "de 15 minutos y resolución o mitigación en menos de 4 horas. La disponibilidad mensual garantizada es del 99.95%.\n\n"
+        "## 2. Política de Devoluciones y Garantía de Equipos\n"
+        "Los clientes corporativos cuentan con una ventana de 30 días calendario para solicitar cambios sin costo "
+        "y una garantía oficial extendida de 3 años o 100,000 kilómetros en flota vehicular.\n\n"
+        "## 3. Restricciones de Seguridad y Protección de Datos\n"
+        "Queda estrictamente prohibido almacenar claves privadas o credenciales de producción en texto plano. "
+        "Todos los documentos sensibles deben cifrarse bajo el estándar AES-256 y auditarse trimestralmente."
+    ).encode("utf-8"),
+    "catalogo_precios_y_servicios.csv": (
+        "Servicio,Categoria,Precio_USD,Plazo_Entrega,Requisitos_Obligatorios\n"
+        "Auditoría Cloud Enterprise,Seguridad,4500,10 días hábiles,Acceso IAM de solo lectura y arquitectura actual\n"
+        "Implementación RAG Corporativo,Inteligencia Artificial,6800,15 días hábiles,Corpus documental en PDF/DOCX/CSV y API Key\n"
+        "Cirugía Refractiva LASIK Bilateral,Salud Oftalmológica,1850,Programación 48h,Paquimetría corneal mayor a 500 micras y topografía normal\n"
+    ).encode("utf-8"),
+}
+
+# 2. Inicialización de Estado de Sesión (Aislado por Visitante Web)
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
@@ -40,40 +64,60 @@ if "vector_repo_memory" not in st.session_state:
 if "quick_prompt" not in st.session_state:
     st.session_state.quick_prompt = None
 
-# 3. Barra Lateral (Configuración y Gestión de Documentos)
+if "user_api_key" not in st.session_state:
+    st.session_state.user_api_key = ""
+
+# 3. Barra Lateral (Configuración BYOK + BYOD Multi-Formato)
 with st.sidebar:
     st.title("⚙️ Configuración RAG")
-    st.caption("Arquitectura Hexagonal + PostgreSQL pgvector")
+    st.caption("Arquitectura Hexagonal · BYOK & Multi-Formato")
 
-    # Selector de Motor de Ejecución
+    # Selector de Motor de Ejecución (Seguro para Web Pública)
     engine_mode = st.radio(
-        "Modo de Operación:",
-        options=["Producción (Gemini + PostgreSQL)", "Demo Local / Mock ($0 Costo)"],
-        index=0 if os.getenv("GEMINI_API_KEY") else 1,
+        "🧠 Motor de IA:",
+        options=[
+            "🔑 Usar mi API Key (BYOK — IA en Vivo)",
+            "⚡ Modo Demo Instantáneo ($0 Costo — Offline)",
+        ],
+        index=0 if st.session_state.user_api_key else 1,
+        help="En la versión web puedes ingresar tu propia API Key de LLM (no se guarda en ningún servidor) o probar el flujo completo en Modo Demo a $0 costo.",
     )
 
-    is_production = "Producción" in engine_mode
+    use_live_llm = "BYOK" in engine_mode
 
-    # Credenciales y Conexión
-    api_key = os.getenv("GEMINI_API_KEY", "")
-    db_url = os.getenv(
-        "DATABASE_URL",
-        "postgresql://postgres:postgrespassword@localhost:5432/rag_knowledge_base",
-    )
-
-    if is_production:
+    api_key = ""
+    if use_live_llm:
         api_key = st.text_input(
-            "Gemini API Key:",
-            value=api_key,
+            "🔑 Tu LLM API Key:",
+            value=st.session_state.user_api_key,
             type="password",
-            help="Obtenla gratis en https://aistudio.google.com/",
+            placeholder="Pega tu clave AIzaSy...",
+            help="Obtenla gratis en https://aistudio.google.com/ — Se usa de forma efímera por petición y jamás se guarda en disco ni en logs.",
+        ).strip()
+        st.session_state.user_api_key = api_key
+        if st.session_state.user_api_key:
+            if st.button("🔒 Borrar mi API Key de la sesión", use_container_width=True):
+                st.session_state.user_api_key = ""
+                st.rerun()
+
+    # Configuración Opcional de Base de Datos Externa (PostgreSQL + pgvector)
+    use_postgres = False
+    db_url = ""
+    with st.expander("🐘 Base de Datos Vectorial (Avanzado)", expanded=False):
+        st.caption(
+            "Por defecto tus documentos se indexan en **Memoria Aislada de Sesión** (privado por pestaña). "
+            "Activa PostgreSQL si tienes un contenedor `pgvector` o Supabase/Neon."
         )
-        db_url = st.text_input(
-            "PostgreSQL URL (Docker):",
-            value=db_url,
-            type="password",
-            help="Conexión a postgres con pgvector",
-        )
+        use_postgres = st.checkbox("Conectar a PostgreSQL + pgvector", value=False)
+        if use_postgres:
+            db_url = st.text_input(
+                "DATABASE_URL:",
+                value=os.getenv(
+                    "DATABASE_URL",
+                    "postgresql://postgres:postgrespassword@localhost:5432/rag_knowledge_base",
+                ),
+                type="password",
+            )
 
     st.divider()
 
@@ -82,33 +126,39 @@ with st.sidebar:
     chunker = SemanticChunker(chunk_size=700, chunk_overlap=100)
 
     try:
-        if is_production:
-            if not api_key:
-                st.warning("⚠️ Ingresa tu Gemini API Key para Producción, o usa el Modo Demo abajo.")
-                embedder: IEmbeddingProvider = MockEmbeddingProvider()
-                llm: ILLMProvider = MockLLMProvider()
-                repo: IVectorRepository = st.session_state.vector_repo_memory
-            else:
-                try:
-                    embedder = GeminiEmbeddingProvider(api_key=api_key)
-                    llm = GeminiLLMProvider(api_key=api_key)
-                except ImportError as ie:
-                    st.warning(f"⚠️ {ie}. Usando modelos Mock temporales.")
-                    embedder = MockEmbeddingProvider()
-                    llm = MockLLMProvider()
-
-                try:
-                    repo = PostgresVectorRepository(database_url=db_url)
-                    repo.init_storage()
-                    st.success("🟢 Conectado a PostgreSQL + pgvector")
-                except Exception:
-                    st.info("ℹ️ PostgreSQL en Docker no detectado. Usando base vectorial en memoria.")
-                    repo = st.session_state.vector_repo_memory
+        if use_live_llm and api_key:
+            try:
+                embedder: IEmbeddingProvider = CloudEmbeddingProvider(api_key=api_key)
+                llm: ILLMProvider = CloudLLMProvider(api_key=api_key)
+                st.success("🟢 Motor Activo: Cloud LLM + Embeddings Semánticos (BYOK)")
+            except ImportError as ie:
+                st.warning(f"⚠️ {ie}. Usando modelos Mock temporales.")
+                embedder = MockEmbeddingProvider()
+                llm = MockLLMProvider()
         else:
+            if use_live_llm and not api_key:
+                st.warning("⚠️ Pega tu LLM API Key arriba para usar IA real. Mientras tanto, opera en Modo Demo ($0).")
+            else:
+                st.info("💡 Modo Demo Activo ($0 Costo · Sin consumo de API)")
             embedder = MockEmbeddingProvider()
             llm = MockLLMProvider()
+
+        current_embedder_type = type(embedder).__name__
+        if st.session_state.get("last_embedder_type") and st.session_state.last_embedder_type != current_embedder_type:
+            st.session_state.vector_repo_memory = InMemoryVectorRepository()
+            st.toast("🔄 Motor vectorial cambiado: se reinició la memoria de sesión para mantener consistencia de embeddings.")
+        st.session_state.last_embedder_type = current_embedder_type
+
+        if use_postgres and db_url:
+            try:
+                repo: IVectorRepository = PostgresVectorRepository(database_url=db_url)
+                repo.init_storage()
+                st.success("🟢 Almacenamiento: PostgreSQL 16 + pgvector (HNSW)")
+            except Exception:
+                st.info("ℹ️ PostgreSQL no disponible. Usando bóveda vectorial en memoria de sesión.")
+                repo = st.session_state.vector_repo_memory
+        else:
             repo = st.session_state.vector_repo_memory
-            st.info("💡 Modo Demo Activo ($0 Costo / Sin dependencias externas)")
     except Exception as e:
         st.error(f"Error de inicialización: {e}")
         st.stop()
@@ -120,20 +170,25 @@ with st.sidebar:
         embedder=embedder, repository=repo, llm=llm
     )
 
-    # Subida de Documentos
-    st.subheader("📁 Ingesta de Documentos")
+    # Subida de Documentos (BYOD Multi-Formato)
+    st.subheader("📁 Subir tus Documentos")
     uploaded_files = st.file_uploader(
-        "Cargar archivos PDF, Markdown o TXT:",
-        type=["pdf", "md", "txt"],
+        f"Formatos soportados: PDF, DOCX, CSV, JSON, MD, TXT, HTML (Máx {MAX_FILE_SIZE_MB}MB):",
+        type=list(UniversalDocumentParser.SUPPORTED_EXTENSIONS),
         accept_multiple_files=True,
     )
 
     if uploaded_files:
-        if st.button("🚀 Indexar Documentos", use_container_width=True):
+        if st.button("🚀 Indexar Mis Documentos", type="primary", use_container_width=True):
             for file in uploaded_files:
                 file_bytes = file.read()
+                if len(file_bytes) > MAX_FILE_SIZE_BYTES:
+                    st.error(
+                        f"❌ `{file.name}` supera el límite web de {MAX_FILE_SIZE_MB} MB."
+                    )
+                    continue
                 with st.status(f"Indexando `{file.name}`...", expanded=True) as status:
-                    st.write("1. Extrayendo páginas...")
+                    st.write("1. Extrayendo páginas y secciones...")
                     st.write("2. Generando fragmentos semánticos...")
                     st.write("3. Calculando embeddings vectoriales...")
                     doc, num_chunks = ingest_use_case.execute(file_bytes, file.name)
@@ -142,6 +197,26 @@ with st.sidebar:
                         state="complete",
                     )
             st.rerun()
+
+    # Botones Rápidos: Cargar Pack Demo o Limpiar Sesión
+    col_demo, col_clear = st.columns(2)
+    if col_demo.button(
+        "⚡ Cargar Demo",
+        help="¿No tienes un archivo a mano? Carga 2 documentos de ejemplo (Política SLA + Catálogo CSV) para probar ahora mismo.",
+        use_container_width=True,
+    ):
+        for fname, fbytes in SAMPLE_DEMO_DOCS.items():
+            ingest_use_case.execute(fbytes, fname)
+        st.rerun()
+
+    if col_clear.button(
+        "🧹 Limpiar Todo",
+        help="Borra los documentos y el historial de chat de tu sesión actual.",
+        use_container_width=True,
+    ):
+        st.session_state.vector_repo_memory = InMemoryVectorRepository()
+        st.session_state.messages = []
+        st.rerun()
 
     # Lista de Documentos y Filtros
     st.divider()

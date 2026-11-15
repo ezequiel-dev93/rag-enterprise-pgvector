@@ -41,7 +41,7 @@ flowchart TD
         MockEmb["MockEmbeddingProvider (Determinist L2)"]
         GeminiLLM["Gemini 2.5 Flash / 1.5 Flash (Strict Grounding)"]
         MockLLM["MockLLMProvider"]
-        Parser["UniversalDocumentParser (PDF, Markdown, TXT)"]
+        Parser["UniversalDocumentParser (PDF, DOCX, CSV, JSON, HTML, MD, TXT)"]
         Chunker["SemanticChunker (Preserva número de página)"]
     end
 
@@ -88,9 +88,12 @@ flowchart TD
 8. **Prevención Estricta de Alucinaciones:**
    * Si la información no está presente en el contexto recuperado, el sistema responde honestamente: *"No se encontró información relevante en los documentos indexados para responder esta pregunta"*, evitando respuestas inventadas.
 
-9. **Doble Motor de Operación (Producción vs $0 Demo):**
-   * **Modo Producción:** Conexión con PostgreSQL 16 en Docker y modelos oficiales de Google Gemini (`text-embedding-004` y `gemini-2.5-flash`).
-   * **Modo Demo / Offline ($0 Costo):** Almacenamiento vectorial en memoria y modelos Mock para pruebas y tests unitarios sin conexión a internet ni consumo de saldo.
+9. **Ingesta Universal Multi-Formato (BYOD):**
+   * Soporta subida directa de **`PDF`, `DOCX` (Word), `CSV` (tablas semánticas), `JSON`, `HTML`, `MD` y `TXT`** con paginación lógica y botón de **Carga Demo en 1 Clic**.
+
+10. **Arquitectura Web-Ready con BYOK (*Bring Your Own Key*) y Modo $0:**
+    * **Modo BYOK (IA Real en Web):** El visitante ingresa su propia `Gemini API Key` en su sesión privada del navegador (`gemini-2.5-flash` + `text-embedding-004`) sin exponer claves en el servidor, con soporte opcional para PostgreSQL 16 + `pgvector`.
+    * **Modo Demo / Offline ($0 Costo):** Almacenamiento vectorial aislado por sesión y modelos Mock deterministas para pruebas instantáneas sin costo.
 
 ---
 
@@ -98,7 +101,9 @@ flowchart TD
 
 ```text
 02-rag-system/
-├── app.py                             # Frontend interactivo en Streamlit
+├── app.py                             # Frontend interactivo Web-Ready (BYOK + Multi-Formato)
+├── .streamlit/
+│   └── config.toml                    # Seguridad XSRF, límite 10MB y tema ejecutivo
 ├── docker-compose.yml                 # PostgreSQL 16 con extensión pgvector
 ├── requirements.txt                   # Dependencias (streamlit, pydantic, pgvector, etc.)
 ├── .env.example                       # Variables de configuración
@@ -110,9 +115,9 @@ flowchart TD
 │   │   └── ports.py                   # Interfaces abstractas (IVectorRepository, ILLMProvider, etc.)
 │   ├── infrastructure/                # Adaptadores concretos
 │   │   ├── parsers/                   # UniversalDocumentParser y SemanticChunker
-│   │   ├── embeddings/                # GeminiEmbeddingProvider y MockEmbeddingProvider
+│   │   ├── embeddings/                # CloudEmbeddingProvider y MockEmbeddingProvider
 │   │   ├── storage/                   # PostgresVectorRepository (HNSW) e InMemoryVectorRepository
-│   │   └── llm/                       # GeminiLLMProvider (Strict Grounding) y MockLLMProvider
+│   │   └── llm/                       # CloudLLMProvider (Strict Grounding) y MockLLMProvider
 │   └── use_cases/                     # Casos de uso de la aplicación
 │       ├── ingest_document.py         # Flujo de ingestión y vectorización
 │       └── query_knowledge_base.py    # Flujo de recuperación semántica y síntesis
