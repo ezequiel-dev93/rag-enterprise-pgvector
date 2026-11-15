@@ -1,13 +1,16 @@
 # 📚 RAG Enterprise: Búsqueda Fundamentada con Citaciones Verificables
 
+[![Live Demo](https://img.shields.io/badge/🌐%20Live%20Demo-Streamlit%20Cloud-FF4B4B.svg?logo=streamlit&logoColor=white)](https://rag-enterprise-ezequiel.streamlit.app/)
 [![Python](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](https://www.python.org/)
-[![UI](https://img.shields.io/badge/UI-Streamlit%201.38%2B-red.svg)](https://streamlit.io/)
+[![UI](https://img.shields.io/badge/UI-Streamlit%201.38%2B-red.svg)](https://rag-enterprise-ezequiel.streamlit.app/)
 [![Database](https://img.shields.io/badge/Database-PostgreSQL%2016%20%2B%20pgvector-blue.svg)](https://github.com/pgvector/pgvector)
 [![Architecture](https://img.shields.io/badge/Architecture-Hexagonal%20(Ports%20%26%20Adapters)-green.svg)](docs/architecture.md)
-[![Status](https://img.shields.io/badge/Tests-100%25%20Passing-success.svg)](tests/)
+[![Status](https://img.shields.io/badge/Tests-9%2F9%20Passing%20(E2E)-success.svg)](tests/)
 [![License](https://img.shields.io/badge/License-Proprietary%20%7C%20All%20Rights%20Reserved-critical.svg)](LICENSE)
 
-Sistema completo de **Retrieval-Augmented Generation (RAG)** de grado de producción diseñado para responder sobre documentos privados (PDFs, manuales técnicos, políticas) con **citas exactas de fuentes** y **cero alucinaciones**.
+> 🚀 ** Pruébalo en vivo en tu navegador ($0 costo o con tu propia API Key):** [**https://rag-enterprise-ezequiel.streamlit.app/**](https://rag-enterprise-ezequiel.streamlit.app/)
+
+Sistema completo de **Retrieval-Augmented Generation (RAG)** de grado de producción diseñado para responder sobre documentos privados (`PDF`, `DOCX`, `CSV`, `JSON`, `HTML`, `MD`, `TXT`) con **citas exactas de fuentes** y **cero alucinaciones**.
 
 Desarrollado con **Arquitectura Hexagonal pura**: el núcleo de dominio y los casos de uso son 100% independientes del framework visual (**Streamlit**), lo que permite reutilizar el mismo motor en FastAPI, Next.js o Astro sin modificar la lógica del negocio.
 
